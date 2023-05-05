@@ -4,13 +4,13 @@ import argparse
 
 from EmissionCounter import EmissionCounter
 from VehicleCounter import VehicleCounter
-from sys import argv
-from pathlib import Path
+from DataLogger import DataLogger
+from os import path
 
 
 class vehicle_detection:
-    def __init__(self, path_to_model, conf=0.55, iou=0.45, device='cuda' if torch.cuda.is_available() else 'cpu', time_to_avg=5, display=False):
-        self.path_to_model = Path(path_to_model)
+    def __init__(self, path_to_model, conf=0.55, iou=0.45, device='cuda' if torch.cuda.is_available() else 'cpu', time_to_avg=5, log_timer=30, display=False):
+        self.path_to_model = path.join(path_to_model)
         self.model = self.select_custom_model(self.path_to_model.__str__())
         self.device = device
         self.model.to(self.device)
@@ -19,7 +19,9 @@ class vehicle_detection:
         self.time_to_avg = time_to_avg
         self.VehicleCounter = VehicleCounter()
         self.emision_counter = EmissionCounter(30)
+        self.log_timer = log_timer
         self.display = display
+        self.data_logger = DataLogger()
         self.bgr = {
             'Car': (10,10, 255),
             'Jeepney': (86,170,255),
@@ -66,7 +68,6 @@ class vehicle_detection:
             cv.putText(frame, curr_vehicle, (x1,y1-rect_thickness), cv.FONT_HERSHEY_SIMPLEX, 0.5, self.bgr[curr_vehicle], 2)
 
         self.emision_counter.add_emission_count(self.VehicleCounter.get_vehicle_count())
-        self.VehicleCounter.reset_count()
 
         return frame
 
@@ -81,9 +82,9 @@ class vehicle_detection:
 
         # saving the video
         fps = capture.get(5)
-        output_dir = Path('output')
-        filename = 'test_file1.mp4'
-        result_vid = cv.VideoWriter(output_dir.joinpath(filename).__str__(), cv.VideoWriter_fourcc(*'mp4v'), fps, (int(capture.get(3)), int(capture.get(4))))
+        output_dir = self.data_logger.get_dir()
+        filename = 'Video_Output.mp4'
+        result_vid = cv.VideoWriter(f'{output_dir}{path.join(filename)}', cv.VideoWriter_fourcc(*'mp4v'), fps, (int(capture.get(3)), int(capture.get(4))))
 
         self.emision_counter.set_queue_num(fps*self.time_to_avg)
         frame_counter = 0
@@ -104,6 +105,20 @@ class vehicle_detection:
                 emission_count = self.emision_counter.get_emission_count()
                 prompt = f'Total emissions: {round(emission_count,2)} PM2.5/km'
 
+            # only update the log once every log_timer
+            if frame_counter%(int(fps)*self.log_timer) == 0:
+                new_data = [
+                    round(self.emision_counter.get_curr_emission_count(),2), 
+                    self.VehicleCounter.get_vehicle_count('Car'),
+                    self.VehicleCounter.get_vehicle_count('Jeepney'),
+                    self.VehicleCounter.get_vehicle_count('Motorcycle'),
+                    self.VehicleCounter.get_vehicle_count('Tricycle'),
+                    self.VehicleCounter.get_vehicle_count('Truck'),
+                    self.VehicleCounter.get_vehicle_count('Utility Vehicle'),
+                    ]
+                self.data_logger.write_row(new_data)
+            
+            self.VehicleCounter.reset_count()
             cv.putText(new_frame, prompt, (int(new_frame.shape[1]*0.01)+2,int(new_frame.shape[0]*0.05)+2), cv.FONT_HERSHEY_SIMPLEX, 1, (10,10,10), 2)
             cv.putText(new_frame, prompt, (int(new_frame.shape[1]*0.01),int(new_frame.shape[0]*0.05)), cv.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
 
@@ -122,7 +137,7 @@ class vehicle_detection:
         capture.release()
         cv.destroyAllWindows()
 
-def main(file, weights, conf, iou, device, time_to_avg, display=True):
+def main(file, weights, conf, iou, device, time_to_avg, log_timer, display=True):
     # YOLOv5 model
     detector = vehicle_detection(
         weights,
@@ -130,6 +145,7 @@ def main(file, weights, conf, iou, device, time_to_avg, display=True):
         iou=iou,
         device=device,
         time_to_avg=time_to_avg,
+        log_timer=log_timer,
         display=display
         )
     detector.process_video(file)
@@ -144,6 +160,7 @@ if __name__ == "__main__":
     parser.add_argument('--iou', metavar='iou', default=0.45, type=int, help='Set IOU')
     parser.add_argument('--device', metavar='device', default='cuda' if torch.cuda.is_available() else 'cpu', type=str, help='Set Device to use to CUDA or CPU')
     parser.add_argument('--time-to-avg', metavar='time_to_avg', default=5, type=int, help='Set the amount of time the program will average the values')
+    parser.add_argument('--log-timer', metavar='log_timer', default=30, type=int, help='time in seconds for the logger to write to the file')
     parser.add_argument('--no-display', action='store_false', help='option to disable display')
     args = parser.parse_args()
     main(
@@ -153,5 +170,6 @@ if __name__ == "__main__":
         args.iou,
         args.device,
         args.time_to_avg,
-        display=args.no_display,
+        args.log_timer,
+        display=args.no_display
         )

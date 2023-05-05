@@ -14,17 +14,20 @@ class EmissionCounter:
             'Truck': 0.7519,
             'Utility Vehicle': 0.143,
         }
-
-    def add_emission_count(self, vehicle_count):
+    def calculate_emission(self, vehicle_count):
         total_emission = 0
-
-        if len(self.emission_queue) == self.queue_num:
-            self.emission_queue.popleft()
 
         for key in vehicle_count:
             total_emission += self.get_emission_of(key) * vehicle_count[key]
 
-        self.emission_queue.append(total_emission)
+        return total_emission
+
+
+    def add_emission_count(self, vehicle_count):
+        if len(self.emission_queue) == self.queue_num:
+            self.emission_queue.popleft()
+
+        self.emission_queue.append(self.calculate_emission(vehicle_count))
     
     def get_emission_of(self, vehicle):
         return self.emission_values[vehicle]
@@ -32,6 +35,9 @@ class EmissionCounter:
     def get_emission_count(self):
         # print(self.emission_queue)
         return mean(self.emission_queue)
+    
+    def get_curr_emission_count(self):
+        return self.emission_queue[-1]
 
     def set_queue_num(self, new_num):
         self.queue_num = new_num

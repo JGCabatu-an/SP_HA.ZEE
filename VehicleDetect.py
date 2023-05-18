@@ -5,12 +5,13 @@ import argparse
 from EmissionCounter import EmissionCounter
 from VehicleCounter import VehicleCounter
 from DataLogger import DataLogger
-from os import path
+from os import path, system, getcwd, chdir
 
 
 class vehicle_detection:
     def __init__(self, path_to_model, conf=0.55, iou=0.45, device='cuda' if torch.cuda.is_available() else 'cpu', time_to_avg=5, log_timer=30, display=False):
         self.path_to_model = path.join(path_to_model)
+        self.path_to_yolov5 = path.join(f'{path.dirname(path.realpath(__file__))}/yolov5/')
         self.model = self.select_custom_model(self.path_to_model.__str__())
         self.device = device
         self.model.to(self.device)
@@ -35,8 +36,28 @@ class vehicle_detection:
         """
         Function to select a custom YOLOv5 model
         """
-        # returns model
-        return torch.hub.load("ultralytics/yolov5", "custom", path_to_model)
+
+        # Uncomment below to use online        
+        # return torch.hub.load("ultralytics/yolov5", "custom", path_to_model)
+
+        # Download Yolov5 Repository if it does not exist already
+        if not path.exists(self.path_to_yolov5):
+            current_dir = getcwd()
+            chdir(path.dirname(path.realpath(__file__)))
+            system('git clone git@github.com:ultralytics/yolov5.git')
+            chdir('yolov5')
+
+            '''
+            If the installation of requirements.txt failed 
+            or there are missing modules
+            please install the requirements manually
+            '''
+            system('pip install -r requirements.txt')
+
+            chdir(current_dir)
+        
+        return torch.hub.load(self.path_to_yolov5, "custom", path_to_model, source='local')
+
 
 
     def analyze_frame(self, frame):
@@ -78,6 +99,7 @@ class vehicle_detection:
         """
         if source == "0":
             source = 0
+
         capture = cv.VideoCapture(source)
 
         # saving the video
@@ -152,12 +174,12 @@ def main(file, weights, conf, iou, device, time_to_avg, log_timer, display=True)
 
 
 if __name__ == "__main__":
-    proj_desc = " Hazy A software for approximating PM2.5 emission from traffic footage."
-    parser = argparse.ArgumentParser(description='Hazy')
+    proj_desc = "Hazy A software for approximating PM2.5 emission from traffic footage."
+    parser = argparse.ArgumentParser(description=proj_desc)
     parser.add_argument('filepath', metavar='filepath', type=str, help='Location of the video file')
     parser.add_argument('--weights', metavar='weights', default='weights/Best.pt', type=str, help='path location of the weights that will be used')
-    parser.add_argument('--conf', metavar='conf', default=0.55, type=int, help='Set confidence threshold')
-    parser.add_argument('--iou', metavar='iou', default=0.45, type=int, help='Set IOU')
+    parser.add_argument('--conf', metavar='conf', default=0.55, type=float, help='Set confidence threshold')
+    parser.add_argument('--iou', metavar='iou', default=0.45, type=float, help='Set IOU')
     parser.add_argument('--device', metavar='device', default='cuda' if torch.cuda.is_available() else 'cpu', type=str, help='Set Device to use to CUDA or CPU')
     parser.add_argument('--time-to-avg', metavar='time_to_avg', default=5, type=int, help='Set the amount of time the program will average the values')
     parser.add_argument('--log-timer', metavar='log_timer', default=30, type=int, help='time in seconds for the logger to write to the file')

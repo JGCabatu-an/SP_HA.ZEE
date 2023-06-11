@@ -1,7 +1,0 @@
-output/*
-outputs/*
-weights/*
-__pycache__/
-.gitignore
-test.py
-yolov5

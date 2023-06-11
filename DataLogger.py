@@ -18,7 +18,7 @@ class DataLogger:
         
         self.dir_name = path.join(f'{path.dirname(path.realpath(__file__))}/outputs/run{dir_id}/')
         makedirs(self.dir_name)
-        self.filepath = f'{self.dir_name}{datetime.datetime.now()}.csv'
+        self.filepath = path.join(f'{self.dir_name}{datetime.datetime.now()}.csv')
         with open(self.filepath, 'w', encoding='UTF-8', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(self.headers)

@@ -5,7 +5,6 @@ class EmissionCounter:
     def __init__(self, queue_num):
         self.emission_queue = deque()
         self.queue_num = queue_num
-        # TODO: change into actual values
         self.emission_values = {
             'Car': 0.0221,
             'Jeepney': 0.8466,
@@ -33,7 +32,6 @@ class EmissionCounter:
         return self.emission_values[vehicle]
 
     def get_emission_count(self):
-        # print(self.emission_queue)
         return mean(self.emission_queue)
     
     def get_curr_emission_count(self):

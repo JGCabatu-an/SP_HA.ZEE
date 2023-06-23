@@ -90,11 +90,11 @@ class VehicleDetection:
             curr_vehicle = self.int_to_label(labels[i])
             self.vehicle_counter.increment_vehicle(curr_vehicle)
 
-            rect_thickness = 1
+            rect_thickness = 2
             cv.rectangle(frame, (x1,y1), (x2,y2), self.bgr[curr_vehicle], rect_thickness)
-            cv.putText(frame, curr_vehicle, (x1,y1-rect_thickness), cv.FONT_HERSHEY_SIMPLEX, 0.5, self.bgr[curr_vehicle], 2)
+            cv.putText(frame, curr_vehicle, (x1,y1-rect_thickness), cv.FONT_HERSHEY_SIMPLEX, 0.5, self.bgr[curr_vehicle], 2, cv.LINE_AA)
 
-        self.emission_counter.add_emission_count(self.vehicle_counter.get_vehicle_count())
+        # self.emission_counter.add_emission_count(self.vehicle_counter.get_vehicle_count())
 
         return frame
 
@@ -114,7 +114,8 @@ class VehicleDetection:
         filename = 'Video_Output.mp4'
         result_vid = cv.VideoWriter(f'{output_dir}{path.join(filename)}', cv.VideoWriter_fourcc(*'mp4v'), fps, (int(capture.get(3)), int(capture.get(4))))
 
-        self.emission_counter.set_queue_num(fps*self.time_to_avg)
+        # self.emission_counter.set_queue_num(fps*self.time_to_avg)
+        pic_num = 0
         frame_counter = 0
         while(capture.isOpened()):
             ret, frame = capture.read()
@@ -130,19 +131,31 @@ class VehicleDetection:
 
             # only update the displayed counter every second
             if frame_counter%int(fps) == 0:
-                emission_count = self.emission_counter.get_emission_count()
-                prompt = f'Total emissions: {round(emission_count,2)} PM2.5/km'
+                emission_count_PM = self.emission_counter.calculate_emission(self.vehicle_counter.get_total_count(), 'PM') / (frame_counter + 1)
+                emission_count_CO2 = self.emission_counter.calculate_emission(self.vehicle_counter.get_total_count(), 'CO2') / (frame_counter + 1)
+                emission_count_CH4 = self.emission_counter.calculate_emission(self.vehicle_counter.get_total_count(), 'CH4') / (frame_counter + 1)
+                emission_count_N2O = self.emission_counter.calculate_emission(self.vehicle_counter.get_total_count(), 'N2O') / (frame_counter + 1)
+                prompt1 = f'Average emissions (g/km) per frame:'
+                prompt2 = f'[PM2.5]: {round(emission_count_PM,2)}'
+                prompt3 = f'[CH4]: {round(emission_count_CH4,2)}'
+                prompt4 = f'[N2O]: {round(emission_count_N2O,2)}'
+                prompt5 = f'[CO2]: {round(emission_count_CO2,2)}'
 
             # only update the log once every log_timer
             if frame_counter%(int(fps)*self.log_timer) == 0:
                 new_data = [
-                    round(self.emission_counter.get_curr_emission_count(),2), 
                     self.vehicle_counter.get_vehicle_count('Car'),
                     self.vehicle_counter.get_vehicle_count('Jeepney'),
                     self.vehicle_counter.get_vehicle_count('Motorcycle'),
                     self.vehicle_counter.get_vehicle_count('Tricycle'),
                     self.vehicle_counter.get_vehicle_count('Truck'),
                     self.vehicle_counter.get_vehicle_count('Utility Vehicle'),
+                    round(self.emission_counter.calculate_emission(self.vehicle_counter.get_vehicle_count(), 'PM'),2),
+                    round(self.emission_counter.calculate_emission(self.vehicle_counter.get_vehicle_count(), 'CO2'),2),
+                    round(self.emission_counter.calculate_emission(self.vehicle_counter.get_vehicle_count(), 'CH4'),2),
+                    round(self.emission_counter.calculate_emission(self.vehicle_counter.get_vehicle_count(), 'N2O'),2),
+
+
                     ]
                 self.data_logger.write_row(new_data)
             
@@ -155,14 +168,20 @@ class VehicleDetection:
             font = cv.FONT_HERSHEY_SIMPLEX
             font_scale = 1
             thickness = 2
-            (rect_w, rect_h), _ = cv.getTextSize(prompt, font, font_scale, thickness)
-            cv.rectangle(new_frame, (x,y-rect_h-offset), (x+rect_w, y+10), (255,255,255), -1)
-            cv.putText(new_frame, prompt, (x,y), font, font_scale, (10,10,10), thickness)
+            (rect_w, rect_h), _ = cv.getTextSize(prompt1, font, font_scale, thickness)
+            cv.rectangle(new_frame, (x,y-rect_h-offset), (x+rect_w, (y+10)*3), (255,255,255), -1)
+            cv.putText(new_frame, prompt1, (x,y), font, font_scale, (10,10,10), thickness,cv.LINE_AA)
+            cv.putText(new_frame, prompt2, (x,y+rect_h+offset+8), font, font_scale, (10,10,10), thickness,cv.LINE_AA)
+            cv.putText(new_frame, prompt3, (x+(rect_w//2)+offset,y+rect_h+offset+8), font, font_scale, (10,10,10), thickness, cv.LINE_AA)
+            cv.putText(new_frame, prompt4, (x,y+((rect_h+offset)*2)+16), font, font_scale, (10,10,10), thickness, cv.LINE_AA)
+            cv.putText(new_frame, prompt5, (x+(rect_w//2)+offset,y+((rect_h+offset)*2)+16), font, font_scale, (10,10,10), thickness, cv.LINE_AA)
+
+
 
             # NOTE: THE FOLLOWING LINES IS ONLY FOR DOCUMENTATION DO NOT PUSH
-            # if frame_counter%int(fps) == 0:
-            #     cv.imwrite(f'{self.data_logger.get_dir()}/{frame_counter}.png', new_frame)
-            #     pic_num += 1
+            if frame_counter%int(fps) == 0:
+                cv.imwrite(f'{self.data_logger.get_dir()}/{frame_counter}.png', new_frame)
+                pic_num += 1
 
             if self.display:
                 cv.imshow('HAZY',new_frame)
@@ -203,7 +222,7 @@ if __name__ == "__main__":
     parser.add_argument('--iou', metavar='iou', default=0.45, type=float, help='Set IOU')
     parser.add_argument('--device', metavar='device', default='cuda' if torch.cuda.is_available() else 'cpu', type=str, help='Set Device to use to CUDA or CPU')
     parser.add_argument('--time-to-avg', metavar='time_to_avg', default=5, type=int, help='Set the amount of time the program will average the values')
-    parser.add_argument('--log-timer', metavar='log_timer', default=30, type=int, help='time in seconds for the logger to write to the file')
+    parser.add_argument('--log-timer', metavar='log_timer', default=5, type=int, help='time in seconds for the logger to write to the file')
     parser.add_argument('--no-display', action='store_false', help='option to disable display')
     args = parser.parse_args()
     main(

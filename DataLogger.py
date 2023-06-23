@@ -2,14 +2,13 @@ import datetime
 import csv
 
 from os import path, makedirs
-
 from EmissionCounter import EmissionCounter
 from VehicleCounter import VehicleCounter
 
 # TODO: Save data to csv file
 class DataLogger:
     def __init__(self):
-        self.headers = ['datetime', 'PM2.5', 'Cars', 'Jeepney', 'Motorcycle', 'Tricycle', 'Truck', 'Utility Vehicle']
+        self.headers = ['datetime', 'Cars', 'Jeepney', 'Motorcycle', 'Tricycle', 'Truck', 'Utility Vehicle', 'PM2.5', 'CO2', 'CH4', 'N2O']
 
         # Figure out the directory name
         dir_id =''
